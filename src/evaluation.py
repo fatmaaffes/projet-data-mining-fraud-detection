@@ -114,56 +114,70 @@ def metrics_at_threshold(
 
 def comparison_table(
     results,
-    y_true,
-    amounts,
+    split,
     alert_cost: float,
     k: int,
-    *,
-    use_test: bool = True,
 ) -> pd.DataFrame:
+    """Choose every threshold on validation, then report final test metrics."""
+
     rows = []
+    validation_amounts = split.validation_raw["transaction_amount"].to_numpy()
+    test_amounts = split.test_raw["transaction_amount"].to_numpy()
 
     for name, result in results.items():
-        scores = (
-            result.test_scores
-            if use_test
-            else result.validation_scores
-        )
         threshold_info = optimize_threshold(
-            y_true,
-            scores,
-            amounts,
+            split.y_validation,
+            result.validation_scores,
+            validation_amounts,
             alert_cost,
         )
         threshold = threshold_info["threshold"]
+
         threshold_metrics = metrics_at_threshold(
-            y_true,
-            scores,
+            split.y_test,
+            result.test_scores,
             threshold,
         )
         p_at_k, r_at_k = precision_recall_at_k(
-            y_true,
-            scores,
+            split.y_test,
+            result.test_scores,
             k,
+        )
+        test_cost = business_cost(
+            split.y_test,
+            result.test_scores,
+            test_amounts,
+            threshold,
+            alert_cost,
         )
 
         rows.append(
             {
                 "Méthode": name,
-                "PR-AUC": average_precision_score(y_true, scores),
-                "ROC-AUC": roc_auc_score(y_true, scores),
+                "PR-AUC test": average_precision_score(
+                    split.y_test,
+                    result.test_scores,
+                ),
+                "ROC-AUC test": roc_auc_score(
+                    split.y_test,
+                    result.test_scores,
+                ),
                 f"Précision@{k}": p_at_k,
                 f"Rappel@{k}": r_at_k,
-                "F2": threshold_metrics["f2"],
-                "MCC": threshold_metrics["mcc"],
-                "Seuil": threshold,
-                "Coût": threshold_info["cost"],
-                "Alertes": threshold_metrics["alerts"],
+                "F2 test": threshold_metrics["f2"],
+                "MCC test": threshold_metrics["mcc"],
+                "Seuil validation": threshold,
+                "Coût validation": threshold_info["cost"],
+                "Coût test": test_cost,
+                "Alertes test": threshold_metrics["alerts"],
             }
         )
 
     return (
         pd.DataFrame(rows)
-        .sort_values(["PR-AUC", "Coût"], ascending=[False, True])
+        .sort_values(
+            ["PR-AUC test", "Coût test"],
+            ascending=[False, True],
+        )
         .reset_index(drop=True)
     )
