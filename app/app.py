@@ -154,7 +154,6 @@ module = st.sidebar.radio(
         "3 · Modélisation",
         "4 · Évaluation & seuil",
         "5 · Explainable AI",
-        "6 · FastAPI",
     ],
 )
 
@@ -798,39 +797,6 @@ elif module == "5 · Explainable AI":
             "Elle ne prouve pas qu'une variable cause réellement la fraude."
         )
 
-
-elif module == "6 · FastAPI":
-    st.header("Module 6 — API FastAPI")
-    section_intro(
-        "Exposer le détecteur supervisé par une API.",
-        "Endpoints de santé, prédiction et explication locale.",
-        "Une API permet à une autre application ou à un système de paiement d'interroger le modèle sans dépendre directement de l'interface Streamlit.",
-    )
-
-    st.code("uvicorn api.main:app --reload", language="powershell")
-    st.write("Documentation interactive : http://127.0.0.1:8000/docs")
-    st.code("GET /health\nPOST /predict\nPOST /explain", language="text")
-
-    api_url = st.text_input(
-        "URL de l'API",
-        value="http://127.0.0.1:8000",
-    ).rstrip("/")
-
-    if st.button("Tester /health"):
-        try:
-            response = requests.get(
-                f"{api_url}/health",
-                timeout=15,
-            )
-            response.raise_for_status()
-            st.success(response.json())
-        except Exception as exc:
-            st.error(f"API inaccessible : {exc}")
-
-    st.caption(
-        "Sur Streamlit Cloud, une API locale 127.0.0.1 n'est pas accessible. "
-        "Pour une remise publique complète, l'API doit être déployée séparément."
-    )
 
 st.sidebar.markdown("---")
 st.sidebar.markdown(f"[Source dataset Kaggle]({KAGGLE_SOURCE})")
