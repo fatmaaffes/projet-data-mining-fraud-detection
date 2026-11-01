@@ -136,7 +136,16 @@ def train_models(split: FraudSplit) -> dict[str, FraudModelResult]:
         contamination="auto",
         n_jobs=-1,
     )
-    lof.fit(X_train_t)
+    # LOF is neighbor-based and expensive on large training sets.
+    # A deterministic subset keeps the Streamlit demo responsive.
+    rng = np.random.default_rng(42)
+    lof_size = min(5000, len(X_train_t))
+    lof_indices = rng.choice(
+        len(X_train_t),
+        size=lof_size,
+        replace=False,
+    )
+    lof.fit(X_train_t[lof_indices])
 
     # Higher score = more suspicious for every method.
     isolation_validation = -isolation.score_samples(X_validation_t)
