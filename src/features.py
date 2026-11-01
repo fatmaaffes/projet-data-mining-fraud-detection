@@ -16,6 +16,8 @@ DROP_FROM_MODEL = [
     "ip_address",
     "shipping_address",
     "billing_address",
+    "customer_location",
+    "transaction_hour",
     "is_fraud",
 ]
 
@@ -119,19 +121,25 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
             == result["billing_address"].astype(str)
         ).astype(int)
 
-    engineered_parts = []
-    for _, group in result.groupby("customer_id", sort=False):
-        engineered_parts.append(_add_customer_history(group))
+    # Behavioral history is meaningful only when at least some customers repeat.
+    if result["customer_id"].duplicated().any():
+        engineered_parts = []
+        for _, group in result.groupby("customer_id", sort=False):
+            engineered_parts.append(_add_customer_history(group))
 
-    result = (
-        pd.concat(engineered_parts, ignore_index=True)
-        .sort_values("transaction_date")
-        .reset_index(drop=True)
-    )
+        result = (
+            pd.concat(engineered_parts, ignore_index=True)
+            .sort_values("transaction_date")
+            .reset_index(drop=True)
+        )
 
-    # New customers have no historical behavior yet. Zero means "no past event".
-    result["customer_tx_count_1h"] = result["customer_tx_count_1h"].fillna(0)
-    result["customer_tx_count_24h"] = result["customer_tx_count_24h"].fillna(0)
+        # New customers have no historical behavior yet.
+        result["customer_tx_count_1h"] = result[
+            "customer_tx_count_1h"
+        ].fillna(0)
+        result["customer_tx_count_24h"] = result[
+            "customer_tx_count_24h"
+        ].fillna(0)
 
     return result
 
