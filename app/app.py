@@ -319,26 +319,48 @@ elif module == "2 · Préparation & variables":
     )
 
     st.subheader("1 · Variables construites")
+    feature_rows = [
+        ["hour_sin / hour_cos", "Codage cyclique de l'heure : 23 h est proche de 0 h."],
+        ["day_of_week", "Jour de la semaine de 0 à 6."],
+        ["is_weekend", "1 si samedi ou dimanche."],
+        ["shipping_billing_match", "1 si les adresses de livraison et facturation sont identiques."],
+    ]
+
+    behavioral_columns = [
+        "customer_tx_count_1h",
+        "customer_tx_count_24h",
+        "customer_amount_mean_30d_past",
+        "amount_vs_30d_mean",
+        "hours_since_previous_tx",
+    ]
+
+    if all(column in featured.columns for column in behavioral_columns):
+        feature_rows.extend(
+            [
+                ["customer_tx_count_1h", "Nombre de transactions précédentes du même client dans la dernière heure."],
+                ["customer_tx_count_24h", "Nombre de transactions précédentes du même client dans les dernières 24 h."],
+                ["customer_amount_mean_30d_past", "Montant moyen des transactions passées du client sur 30 jours."],
+                ["amount_vs_30d_mean", "Montant actuel rapporté au montant moyen passé du client."],
+                ["hours_since_previous_tx", "Temps depuis la transaction précédente du même client."],
+            ]
+        )
+        st.info(
+            "Les variables comportementales sont calculées avant d'ajouter la transaction courante à l'historique. "
+            "Elles n'utilisent donc que le passé du client."
+        )
+    else:
+        unique_ratio = df["customer_id"].nunique() / len(df)
+        st.warning(
+            f"Limite du dataset : {unique_ratio:.1%} des Customer ID sont uniques. "
+            "Il n'y a donc pas assez d'historique répété par client pour construire honnêtement "
+            "les variables de vélocité 1 h / 24 h et de moyenne passée. Elles ne sont pas utilisées par le modèle."
+        )
+
     feature_dictionary = pd.DataFrame(
-        [
-            ["hour_sin / hour_cos", "Codage cyclique de l'heure : 23 h est proche de 0 h."],
-            ["day_of_week", "Jour de la semaine de 0 à 6."],
-            ["is_weekend", "1 si samedi ou dimanche."],
-            ["customer_tx_count_1h", "Nombre de transactions précédentes du même client dans la dernière heure."],
-            ["customer_tx_count_24h", "Nombre de transactions précédentes du même client dans les dernières 24 h."],
-            ["customer_amount_mean_30d_past", "Montant moyen des transactions passées du client sur 30 jours."],
-            ["amount_vs_30d_mean", "Montant actuel rapporté au montant moyen passé du client."],
-            ["hours_since_previous_tx", "Temps depuis la transaction précédente du même client."],
-            ["shipping_billing_match", "1 si les adresses de livraison et facturation sont identiques."],
-        ],
+        feature_rows,
         columns=["Variable", "Explication humaine"],
     )
     st.dataframe(feature_dictionary, use_container_width=True, hide_index=True)
-
-    st.info(
-        "Les variables comportementales sont calculées avant d'ajouter la transaction courante à l'historique. "
-        "Elles n'utilisent donc que le passé du client."
-    )
 
     st.subheader("2 · Séparation chronologique")
     split_rows = []
