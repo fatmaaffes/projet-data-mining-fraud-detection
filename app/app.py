@@ -175,7 +175,7 @@ if module == "1 · Données & EDA":
 
     with tab_overview:
         st.subheader("Aperçu des transactions")
-        st.dataframe(df.head(10), use_container_width=True)
+        st.dataframe(df.head(10), width="stretch")
 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Transactions", f"{summary['transactions']:,}")
@@ -186,7 +186,7 @@ if module == "1 · Données & EDA":
         st.subheader("Valeurs manquantes")
         st.dataframe(
             missing_summary(df),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
         interpretation(
@@ -211,7 +211,7 @@ if module == "1 · Données & EDA":
             text="effectif",
             title="Répartition normale / fraude",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         amount_box = df.copy()
         amount_box["classe"] = amount_box["is_fraud"].map(
@@ -224,14 +224,14 @@ if module == "1 · Données & EDA":
             points=False,
             title="Montants selon la classe",
         )
-        st.plotly_chart(fig_amount, use_container_width=True)
+        st.plotly_chart(fig_amount, width="stretch")
 
         grouped_amounts = (
             df.groupby("is_fraud")["transaction_amount"]
             .agg(["count", "mean", "median", "sum"])
             .rename(index={0: "Normales", 1: "Fraudes"})
         )
-        st.dataframe(grouped_amounts, use_container_width=True)
+        st.dataframe(grouped_amounts, width="stretch")
 
     with tab_time:
         temp = df.copy()
@@ -254,7 +254,7 @@ if module == "1 · Données & EDA":
             xaxis_title="Heure",
             yaxis_title="Taux de fraude (%)",
         )
-        st.plotly_chart(fig_hour, use_container_width=True)
+        st.plotly_chart(fig_hour, width="stretch")
 
         daily = (
             temp.set_index("transaction_date")["is_fraud"]
@@ -269,7 +269,7 @@ if module == "1 · Données & EDA":
             y="fraud_rate_pct",
             title="Évolution du taux de fraude dans le temps",
         )
-        st.plotly_chart(fig_daily, use_container_width=True)
+        st.plotly_chart(fig_daily, width="stretch")
 
         interpretation(
             "La dimension temporelle est conservée jusqu'à la validation : les premières transactions servent à l'entraînement et les plus récentes à la validation puis au test."
@@ -306,7 +306,7 @@ if module == "1 · Données & EDA":
             hover_data=["count"],
             title=f"Taux de fraude selon {category}",
         )
-        st.plotly_chart(fig_cat, use_container_width=True)
+        st.plotly_chart(fig_cat, width="stretch")
 
 
 elif module == "2 · Préparation & variables":
@@ -359,7 +359,7 @@ elif module == "2 · Préparation & variables":
         feature_rows,
         columns=["Variable", "Explication humaine"],
     )
-    st.dataframe(feature_dictionary, use_container_width=True, hide_index=True)
+    st.dataframe(feature_dictionary, width="stretch", hide_index=True)
 
     st.subheader("2 · Séparation chronologique")
     split_rows = []
@@ -380,7 +380,7 @@ elif module == "2 · Préparation & variables":
     split_table = pd.DataFrame(split_rows)
     st.dataframe(
         split_table.style.format({"Taux fraude": "{:.2%}"}),
-        use_container_width=True,
+        width="stretch",
     )
 
     st.write(
@@ -412,7 +412,7 @@ elif module == "2 · Préparation & variables":
         ]
         st.dataframe(
             featured[display_cols].head(20),
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -432,7 +432,7 @@ elif module == "3 · Modélisation":
         ],
         columns=["Méthode", "Famille", "Principe", "Sortie"],
     )
-    st.dataframe(methods, use_container_width=True, hide_index=True)
+    st.dataframe(methods, width="stretch", hide_index=True)
 
     if st.button("Entraîner les 3 méthodes", type="primary"):
         with st.spinner("Entraînement en cours..."):
@@ -461,7 +461,7 @@ elif module == "3 · Modélisation":
         ]
         st.dataframe(
             pd.DataFrame(result_rows),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -524,7 +524,7 @@ elif module == "4 · Évaluation & seuil":
                     "Coût test": "{:,.2f}",
                 }
             ),
-            use_container_width=True,
+            width="stretch",
         )
 
         best = table.iloc[0]
@@ -558,7 +558,7 @@ elif module == "4 · Évaluation & seuil":
             color_discrete_map=MODEL_COLORS,
             title="Courbes précision-rappel — test",
         )
-        st.plotly_chart(pr_fig, use_container_width=True)
+        st.plotly_chart(pr_fig, width="stretch")
 
         st.subheader("Explorer le seuil d'une méthode")
         method = st.selectbox(
@@ -699,7 +699,7 @@ elif module == "5 · Explainable AI":
                     .sort_values("importance_SHAP", ascending=False)
                     .head(10)
                 )
-                st.dataframe(top, use_container_width=True, hide_index=True)
+                st.dataframe(top, width="stretch", hide_index=True)
 
         with tab_local:
             top_positions = np.argsort(
@@ -731,9 +731,10 @@ elif module == "5 · Explainable AI":
             )
 
             with st.expander("Voir la transaction"):
+                raw_display = raw_row.astype(str).to_frame("Valeur")
                 st.dataframe(
-                    raw_row.to_frame("Valeur"),
-                    use_container_width=True,
+                    raw_display,
+                    width="stretch",
                 )
 
             if st.button("Expliquer cette alerte", type="primary"):
@@ -777,7 +778,7 @@ elif module == "5 · Explainable AI":
                 )
                 st.dataframe(
                     reasons,
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True,
                 )
 
