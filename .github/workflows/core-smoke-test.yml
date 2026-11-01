@@ -1,0 +1,50 @@
+name: Core smoke test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install core dependencies
+        run: pip install pandas numpy scikit-learn
+      - name: Run data-model-evaluation pipeline
+        run: |
+          python - <<'PY'
+          from src.data import load_fraud_data
+          from src.features import build_features, chronological_split
+          from src.modeling import train_models
+          from src.evaluation import comparison_table
+
+          df = load_fraud_data()
+          assert len(df) > 1000
+          featured = build_features(df)
+          split = chronological_split(featured)
+          assert len(split.X_train) > 0
+          assert len(split.X_validation) > 0
+          assert len(split.X_test) > 0
+
+          results = train_models(split)
+          assert set(results) == {
+              "Régression logistique",
+              "Isolation Forest",
+              "LOF",
+          }
+
+          table = comparison_table(
+              results,
+              split,
+              alert_cost=5.0,
+              k=min(100, len(split.y_test)),
+          )
+          print(df.shape)
+          print(split.X_train.shape, split.X_validation.shape, split.X_test.shape)
+          print(table.to_string(index=False))
+          PY
