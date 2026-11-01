@@ -1,0 +1,43 @@
+name: Full XAI smoke test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "requirements.txt"
+      - ".github/workflows/full-xai-smoke-test.yml"
+
+jobs:
+  xai:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project dependencies
+        run: pip install -r requirements.txt
+      - name: Check one local SHAP explanation
+        run: |
+          python - <<'PY'
+          from src.data import load_fraud_data
+          from src.features import build_features, chronological_split
+          from src.modeling import train_models
+          from src.explainability import compute_shap, top_reason_codes
+
+          df = load_fraud_data()
+          split = chronological_split(build_features(df))
+          results = train_models(split)
+          model = results["Régression logistique"].estimator
+
+          values, names = compute_shap(
+              model,
+              split.X_train,
+              split.X_test.iloc[[0]],
+          )
+          reasons = top_reason_codes(values[0], names, top_n=5)
+          assert len(reasons) == 5
+          print(reasons.to_string(index=False))
+          PY
