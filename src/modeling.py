@@ -100,9 +100,22 @@ def train_models(split: FraudSplit) -> dict[str, FraudModelResult]:
         )
         scored_candidates.append((pr_auc, label, pipeline))
 
-    _, selected_strategy, supervised_model = max(
+    best_pr_auc, selected_strategy, supervised_model = max(
         scored_candidates,
         key=lambda item: item[0],
+    )
+    strategy_scores = {
+        label: float(pr_auc)
+        for pr_auc, label, _ in scored_candidates
+    }
+    strategy_description = (
+        f"{selected_strategy} retenue sur validation "
+        f"(PR-AUC={best_pr_auc:.4f}). "
+        + "Comparaison : "
+        + " ; ".join(
+            f"{label}={score:.4f}"
+            for label, score in strategy_scores.items()
+        )
     )
 
     supervised_validation = supervised_model.predict_proba(
@@ -160,7 +173,7 @@ def train_models(split: FraudSplit) -> dict[str, FraudModelResult]:
             validation_scores=supervised_validation,
             test_scores=supervised_test,
             supervised=True,
-            strategy=selected_strategy,
+            strategy=strategy_description,
         ),
         "Isolation Forest": FraudModelResult(
             name="Isolation Forest",
