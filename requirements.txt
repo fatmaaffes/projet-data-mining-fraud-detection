@@ -1,0 +1,10 @@
+pandas>=2.2
+numpy>=2.0
+scikit-learn>=1.5
+streamlit>=1.40
+plotly>=5.24
+matplotlib>=3.9
+shap>=0.46
+fastapi>=0.115
+uvicorn[standard]>=0.32
+requests>=2.32
