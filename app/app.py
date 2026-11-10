@@ -698,11 +698,106 @@ elif module == "3 · Modélisation":
         supervised = results["Régression logistique"]
 
         st.subheader("Stratégie contre le déséquilibre")
-        st.write(supervised.strategy)
-        st.caption(
-            "La pondération des classes est comparée à l'absence de pondération sur la validation. "
-            "La stratégie n'est pas choisie par principe mais par performance PR-AUC."
+        st.write(
+            "**Pourquoi comparer deux versions ?** Seulement 5,17 % environ des transactions "
+            "sont frauduleuses : la classe fraude est minoritaire. On veut vérifier si "
+            "lui donner davantage de poids aide vraiment le modèle."
         )
+        st.markdown(
+            "- **Sans pondération** : les transactions normales et frauduleuses "
+            "ont le même poids individuel pendant l'entraînement.\n"
+            "- **Avec `class_weight='balanced'`** : une transaction frauduleuse "
+            "reçoit plus de poids, car elle appartient à la classe minoritaire. "
+            "Cela oblige le modèle à davantage tenir compte des fraudes, "
+            "mais ne garantit pas de meilleurs résultats."
+        )
+
+        st.markdown("#### Ce que nous avons fait, dans l'ordre")
+        training_steps = pd.DataFrame(
+            [
+                {
+                    "Étape": "1 · Train (60 %)",
+                    "Action": "Entraîner séparément les deux versions de la régression logistique.",
+                },
+                {
+                    "Étape": "2 · Validation (20 %)",
+                    "Action": "Calculer leur PR-AUC et garder celle qui obtient le meilleur score.",
+                },
+                {
+                    "Étape": "3 · Test (20 %)",
+                    "Action": "Évaluer la version retenue, après avoir fixé les choix sur la validation.",
+                },
+            ]
+        )
+        st.dataframe(training_steps, width="stretch", hide_index=True)
+        st.caption(
+            "On n'entraîne pas le modèle sur la validation : elle sert à choisir. "
+            "Le réglage du seuil d'alerte se fait ensuite au Module 4, "
+            "également sur la validation, puis est vérifié sur le test."
+        )
+
+        # Les valeurs affichées proviennent du vrai entraînement, pas de chiffres fixes.
+        chosen_strategy = supervised.strategy.split(
+            " retenue sur validation", 1
+        )[0]
+        comparison_part = supervised.strategy.split("Comparaison : ", 1)
+        strategy_rows = []
+        if len(comparison_part) == 2:
+            for entry in comparison_part[1].split(" ; "):
+                if "=" in entry:
+                    label, raw_score = entry.rsplit("=", 1)
+                    try:
+                        score = float(raw_score)
+                    except ValueError:
+                        continue
+                    strategy_rows.append(
+                        {
+                            "Version": label,
+                            "PR-AUC validation": score,
+                            "Décision": "Retenue" if label == chosen_strategy else "Non retenue",
+                        }
+                    )
+
+        st.markdown("#### Résultat de la comparaison")
+        if strategy_rows:
+            st.dataframe(
+                pd.DataFrame(strategy_rows).style.format(
+                    {"PR-AUC validation": "{:.4f}"}
+                ),
+                width="stretch",
+                hide_index=True,
+            )
+            chosen_row = next(
+                (row for row in strategy_rows if row["Décision"] == "Retenue"),
+                None,
+            )
+            if chosen_row is not None:
+                st.success(
+                    f"**Version retenue : {chosen_strategy}**, car sa PR-AUC "
+                    f"sur validation ({chosen_row['PR-AUC validation']:.4f}) "
+                    "est la plus élevée des deux."
+                )
+            if len(strategy_rows) == 2:
+                score_difference = abs(
+                    strategy_rows[0]["PR-AUC validation"]
+                    - strategy_rows[1]["PR-AUC validation"]
+                )
+                interpretation(
+                    "Nous avons testé la pondération, sans la choisir automatiquement. "
+                    "La PR-AUC mesure ici la qualité du classement des fraudes : "
+                    "plus elle est élevée, meilleur est le résultat selon ce critère. "
+                    f"L'écart observé est de {score_difference:.4f}, "
+                    "donc un petit avantage sur cette validation, "
+                    "pas une supériorité garantie dans tous les cas. "
+                    "La PR-AUC ne représente pas l'accuracy."
+                )
+        else:
+            st.write(supervised.strategy)
+            interpretation(
+                "Le choix se fait selon la meilleure PR-AUC sur la validation, "
+                "sans réentraîner sur celle-ci. La PR-AUC n'est pas l'accuracy."
+            )
+
 
         result_rows = [
             {
