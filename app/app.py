@@ -513,6 +513,8 @@ elif module == "2 · Préparation & variables":
             {
                 "Jeu": label,
                 "Transactions": len(part),
+                "Normales (0)": int(part["is_fraud"].eq(0).sum()),
+                "Fraudes (1)": int(part["is_fraud"].eq(1).sum()),
                 "Début": part["transaction_date"].min(),
                 "Fin": part["transaction_date"].max(),
                 "Taux fraude": part["is_fraud"].mean(),
@@ -529,6 +531,28 @@ elif module == "2 · Préparation & variables":
         f"la validation contient {len(split.validation_raw):,} transactions pour choisir "
         f"la stratégie et le seuil ; le test contient {len(split.test_raw):,} transactions "
         "pour mesurer la performance finale. On ne règle jamais le modèle sur le test."
+    )
+
+    st.markdown("#### Pourquoi ne pas utiliser `stratify=y` comme dans le projet 1 ?")
+    st.write(
+        "**Projet 1 — Credit Scoring :** le découpage Train / Test est aléatoire et "
+        "utilise `stratify=y`. Cela conserve approximativement dans chaque ensemble "
+        "la même proportion de bons et de mauvais payeurs que dans le dataset initial."
+    )
+    st.write(
+        "**Projet 2 — Détection de fraude :** le découpage Train / Validation / Test "
+        "respecte l'ordre des dates, **sans `stratify`**. "
+        "Chaque ensemble contient des transactions normales (`is_fraud = 0`) "
+        "et frauduleuses (`is_fraud = 1`), mais les proportions de fraude "
+        "peuvent varier naturellement d'une période à l'autre."
+    )
+    interpretation(
+        "On ne met pas toutes les fraudes d'un côté et toutes les transactions "
+        "normales de l'autre : les colonnes « Normales (0) » et « Fraudes (1) » "
+        "du tableau montrent la répartition réelle de chaque ensemble. "
+        "Le tri chronologique simule le cas métier : apprendre sur le passé "
+        "pour détecter des fraudes futures, sans utiliser de transactions plus récentes "
+        "pour entraîner le modèle."
     )
 
     st.subheader("4 · Prétraitement — rendre les données utilisables")
