@@ -848,9 +848,9 @@ elif module == "4 · Évaluation & seuil":
             "minimise le coût métier. Ce réglage est parfois appelé « calibration du seuil », "
             "mais **ce n'est pas une calibration des probabilités**."
         )
-        st.latex(
-            r"\\text{Coût} = \\text{montants des fraudes manquées} + "
-            r"\\text{coût par alerte} \\times \\text{nombre d'alertes}"
+        st.write(
+            "**Coût total = montants des fraudes manquées + "
+            "coût par alerte × nombre d'alertes.**"
         )
         st.write(
             "**Sur le test**, on applique sans modification le seuil choisi sur la validation. "
