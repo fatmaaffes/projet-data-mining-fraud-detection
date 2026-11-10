@@ -312,18 +312,89 @@ if module == "1 · Données & EDA":
 elif module == "2 · Préparation & variables":
     st.header("Module 2 — Préparation & variables")
     section_intro(
-        "Construire des variables temporelles et comportementales sans utiliser d'information future.",
-        "Variables cycliques, vélocité client, écart au profil passé, temps depuis la transaction précédente et split chronologique 60/20/20.",
-        "Une fraude est souvent anormale par rapport à l'historique du client ; ces variables décrivent ce comportement tout en évitant la fuite de données.",
+        "Transformer les transactions brutes en variables exploitables, sans utiliser d'information future.",
+        "Feature Engineering, choix des variables, séparation chronologique et pipeline d'imputation, de standardisation et de One-Hot Encoding.",
+        "Ces étapes rendent les données utilisables par les modèles et évitent d'apprendre sur des informations qui ne seraient pas disponibles au moment d'une transaction.",
     )
 
-    st.subheader("1 · Variables construites")
-    feature_rows = [
-        ["hour_sin / hour_cos", "Codage cyclique de l'heure : 23 h est proche de 0 h."],
-        ["day_of_week", "Jour de la semaine de 0 à 6."],
-        ["is_weekend", "1 si samedi ou dimanche."],
-        ["shipping_billing_match", "1 si les adresses de livraison et facturation sont identiques."],
-    ]
+    st.subheader("1 · Feature Engineering — nouvelles variables")
+    st.write(
+        "**Feature Engineering** signifie créer des indicateurs utiles à partir des colonnes existantes. "
+        "Ce n'est pas encore le One-Hot Encoding : celui-ci fait partie du prétraitement."
+    )
+    created_features = [column for column in featured.columns if column not in df.columns]
+    initial_count = len(df.columns)
+    engineered_count = len(featured.columns)
+
+    metric_initial, metric_added, metric_total = st.columns(3)
+    metric_initial.metric("Colonnes initiales", initial_count)
+    metric_added.metric("Nouvelles colonnes", len(created_features))
+    metric_total.metric("Colonnes après création", engineered_count)
+
+    feature_explanations = {
+        "hour": (
+            "Extraire l'heure (0 à 23) à partir de transaction_date.",
+            "Étudier les comportements selon l'heure de l'achat.",
+        ),
+        "day_of_week": (
+            "Extraire le jour de la semaine (lundi = 0, dimanche = 6).",
+            "Étudier les différences entre jours de la semaine.",
+        ),
+        "is_weekend": (
+            "Mettre 1 pour samedi/dimanche, sinon 0.",
+            "Distinguer les achats du week-end.",
+        ),
+        "hour_sin": (
+            "Transformer l'heure par un sinus, selon un cycle de 24 h.",
+            "Représenter la proximité entre 23 h et 0 h.",
+        ),
+        "hour_cos": (
+            "Transformer l'heure par un cosinus, selon un cycle de 24 h.",
+            "Compléter le sinus pour représenter correctement l'heure cyclique.",
+        ),
+        "shipping_billing_match": (
+            "Mettre 1 si l'adresse de livraison égale l'adresse de facturation, sinon 0.",
+            "Signaler une différence possible entre les deux adresses, sans conclure à une fraude.",
+        ),
+        "customer_tx_count_1h": (
+            "Compter les achats précédents du client sur 1 h.",
+            "Repérer une fréquence d'achats inhabituelle.",
+        ),
+        "customer_tx_count_24h": (
+            "Compter les achats précédents du client sur 24 h.",
+            "Repérer une activité élevée sur une journée.",
+        ),
+        "customer_amount_mean_30d_past": (
+            "Calculer le montant moyen passé du client sur 30 jours.",
+            "Définir son niveau habituel de dépenses.",
+        ),
+        "amount_vs_30d_mean": (
+            "Diviser le montant actuel par sa moyenne passée sur 30 jours.",
+            "Identifier un achat nettement supérieur au profil passé.",
+        ),
+        "hours_since_previous_tx": (
+            "Calculer le nombre d'heures depuis l'achat précédent.",
+            "Repérer des achats très rapprochés.",
+        ),
+    }
+    feature_table = pd.DataFrame(
+        [
+            {
+                "Variable créée": column,
+                "Calcul effectué": feature_explanations[column][0],
+                "Pourquoi c'est utile": feature_explanations[column][1],
+            }
+            for column in created_features
+            if column in feature_explanations
+        ]
+    )
+    st.dataframe(feature_table, width="stretch", hide_index=True)
+    interpretation(
+        f"Le dataset passe de {initial_count} à {engineered_count} colonnes : "
+        f"{len(created_features)} nouvelles variables ont réellement été créées. "
+        "Les indicateurs temporels décrivent le moment de l'achat ; la comparaison des adresses "
+        "apporte un signal supplémentaire. Aucun de ces signaux ne prouve une fraude à lui seul."
+    )
 
     behavioral_columns = [
         "customer_tx_count_1h",
@@ -332,36 +403,106 @@ elif module == "2 · Préparation & variables":
         "amount_vs_30d_mean",
         "hours_since_previous_tx",
     ]
-
     if all(column in featured.columns for column in behavioral_columns):
-        feature_rows.extend(
-            [
-                ["customer_tx_count_1h", "Nombre de transactions précédentes du même client dans la dernière heure."],
-                ["customer_tx_count_24h", "Nombre de transactions précédentes du même client dans les dernières 24 h."],
-                ["customer_amount_mean_30d_past", "Montant moyen des transactions passées du client sur 30 jours."],
-                ["amount_vs_30d_mean", "Montant actuel rapporté au montant moyen passé du client."],
-                ["hours_since_previous_tx", "Temps depuis la transaction précédente du même client."],
-            ]
-        )
         st.info(
-            "Les variables comportementales sont calculées avant d'ajouter la transaction courante à l'historique. "
-            "Elles n'utilisent donc que le passé du client."
+            "L'historique client est disponible : les variables comportementales ont été calculées "
+            "uniquement avec les transactions antérieures de chaque client."
         )
     else:
         unique_ratio = df["customer_id"].nunique() / len(df)
         st.warning(
-            f"Limite du dataset : {unique_ratio:.1%} des Customer ID sont uniques. "
-            "Il n'y a donc pas assez d'historique répété par client pour construire honnêtement "
-            "les variables de vélocité 1 h / 24 h et de moyenne passée. Elles ne sont pas utilisées par le modèle."
+            f"Limite du dataset : {unique_ratio:.1%} des identifiants clients sont uniques. "
+            "Aucune variable d'historique client (achats sur 1 h / 24 h, moyenne sur 30 jours, "
+            "temps depuis le dernier achat) n'a été ajoutée au modèle. "
+            "Il serait incorrect de présenter ces variables comme déjà calculées."
         )
 
-    feature_dictionary = pd.DataFrame(
-        feature_rows,
-        columns=["Variable", "Explication humaine"],
-    )
-    st.dataframe(feature_dictionary, width="stretch", hide_index=True)
+    with st.expander("Voir les valeurs des variables créées (avant encodage)"):
+        visible_created = [
+            column for column in [
+                "transaction_amount", "hour", "day_of_week", "is_weekend",
+                "hour_sin", "hour_cos", "shipping_billing_match",
+                "customer_tx_count_1h", "amount_vs_30d_mean",
+            ]
+            if column in featured.columns
+        ]
+        st.dataframe(featured[visible_created].head(8), width="stretch")
+        st.caption(
+            "Exemple : is_weekend = 1 indique un week-end ; shipping_billing_match = 0 "
+            "indique des adresses différentes. hour_sin et hour_cos sont des nombres "
+            "qui représentent l'heure sur un cycle de 24 heures."
+        )
 
-    st.subheader("2 · Séparation chronologique")
+    st.subheader("2 · Sélection — quelles variables entrent dans le modèle ?")
+    st.write(
+        "Toutes les colonnes du dataset ne sont pas utilisées directement. Certaines servent à "
+        "construire de nouvelles variables, d'autres sont des identifiants, et is_fraud est la cible à prédire."
+    )
+    exclusions = [
+        (
+            ["transaction_id", "customer_id"],
+            "Identifiants : ils ne décrivent pas directement un comportement généralisable. "
+            "customer_id sert seulement à reconstruire un historique lorsqu'il existe.",
+        ),
+        (
+            ["transaction_date", "transaction_hour"],
+            "La date sert à créer des variables temporelles et au découpage ; "
+            "l'heure est recalculée à partir de transaction_date.",
+        ),
+        (
+            ["shipping_address", "billing_address"],
+            "Les adresses brutes sont écartées ; on conserve leur indicateur de correspondance.",
+        ),
+        (
+            ["ip_address", "customer_location"],
+            "Champs textuels ou à forte cardinalité non encodés dans ce modèle.",
+        ),
+        (
+            ["is_fraud"],
+            "Étiquette réelle 0/1 : c'est la valeur à prédire, jamais une entrée du modèle.",
+        ),
+    ]
+    present_exclusions = []
+    for columns, reason in exclusions:
+        actual = [column for column in columns if column in featured.columns]
+        if actual:
+            present_exclusions.append(
+                {"Colonnes écartées": ", ".join(actual), "Raison": reason}
+            )
+    st.dataframe(
+        pd.DataFrame(present_exclusions),
+        width="stretch",
+        hide_index=True,
+    )
+    st.write("**Variables retenues pour l'apprentissage :**")
+    selected_types = pd.DataFrame(
+        [
+            {
+                "Type": "Numériques",
+                "Nombre": len(split.numeric_features),
+                "Variables": ", ".join(split.numeric_features) or "Aucune",
+            },
+            {
+                "Type": "Catégorielles",
+                "Nombre": len(split.categorical_features),
+                "Variables": ", ".join(split.categorical_features) or "Aucune",
+            },
+        ]
+    )
+    st.dataframe(selected_types, width="stretch", hide_index=True)
+    interpretation(
+        f"Parmi les {engineered_count} colonnes disponibles après création, "
+        f"{split.X_train.shape[1]} sont retenues comme entrées du modèle : "
+        f"{len(split.numeric_features)} numériques et "
+        f"{len(split.categorical_features)} catégorielles. "
+        "La cible is_fraud reste séparée des entrées pour éviter toute fuite de réponse."
+    )
+
+    st.subheader("3 · Séparation chronologique — Train / Validation / Test")
+    st.write(
+        "On trie les transactions par date, puis on garde les plus anciennes pour apprendre "
+        "et les plus récentes pour évaluer le modèle sur un futur simulé."
+    )
     split_rows = []
     for label, part in [
         ("Train — 60 %", split.train_raw),
@@ -381,39 +522,127 @@ elif module == "2 · Préparation & variables":
     st.dataframe(
         split_table.style.format({"Taux fraude": "{:.2%}"}),
         width="stretch",
+        hide_index=True,
+    )
+    interpretation(
+        f"Le train contient {len(split.train_raw):,} transactions pour apprendre ; "
+        f"la validation contient {len(split.validation_raw):,} transactions pour choisir "
+        f"la stratégie et le seuil ; le test contient {len(split.test_raw):,} transactions "
+        "pour mesurer la performance finale. On ne règle jamais le modèle sur le test."
     )
 
+    st.subheader("4 · Prétraitement — rendre les données utilisables")
     st.write(
-        "Le modèle apprend sur les transactions les plus anciennes, choisit sa stratégie et son seuil sur la validation, "
-        "puis le test représente la période la plus récente jamais utilisée pour prendre une décision de modélisation."
+        "Un ColumnTransformer applique automatiquement un traitement différent selon le type "
+        "de variable. Les étapes sont apprises sur le train et réutilisées sans réajustement "
+        "sur la validation et le test."
     )
-
-    st.subheader("3 · Prétraitement")
-    st.write(
-        "Les variables numériques sont imputées par la médiane puis standardisées. "
-        "Les variables catégorielles sont imputées par la modalité la plus fréquente puis encodées en One-Hot. "
-        "Le prétraitement est ajusté uniquement sur le train."
+    preprocessing_table = pd.DataFrame(
+        [
+            {
+                "Variables": "Numériques",
+                "Étape": "SimpleImputer — médiane",
+                "Ce que cela fait": "Remplace une valeur manquante par la médiane calculée sur le train.",
+                "Pourquoi": "Éviter de perdre une transaction si une mesure manque.",
+            },
+            {
+                "Variables": "Numériques",
+                "Étape": "StandardScaler",
+                "Ce que cela fait": "Recentre et réduit chaque variable à partir du train.",
+                "Pourquoi": "Éviter qu'une variable à grande échelle domine les autres.",
+            },
+            {
+                "Variables": "Catégorielles",
+                "Étape": "SimpleImputer — mode",
+                "Ce que cela fait": "Remplace une catégorie manquante par la plus fréquente du train.",
+                "Pourquoi": "Garder une catégorie exploitable même si une valeur manque.",
+            },
+            {
+                "Variables": "Catégorielles",
+                "Étape": "OneHotEncoder",
+                "Ce que cela fait": "Crée une colonne 0/1 pour chaque modalité observée sur le train.",
+                "Pourquoi": "Donner aux modèles des nombres sans inventer d'ordre entre les catégories.",
+            },
+        ]
     )
-
-    with st.expander("Voir un échantillon des variables préparées"):
-        display_cols = [
-            "transaction_date",
-            "transaction_amount",
-            "is_fraud",
-            "hour",
-            "day_of_week",
-            "customer_tx_count_1h",
-            "customer_tx_count_24h",
-            "amount_vs_30d_mean",
-            "hours_since_previous_tx",
-        ]
-        display_cols = [
-            col for col in display_cols if col in featured.columns
-        ]
-        st.dataframe(
-            featured[display_cols].head(20),
-            width="stretch",
+    st.dataframe(preprocessing_table, width="stretch", hide_index=True)
+    missing_train = int(split.X_train.isna().sum().sum())
+    if missing_train:
+        st.caption(
+            f"Dans les entrées du train, {missing_train} valeurs manquantes sont présentes "
+            "et seront traitées par les imputations."
         )
+    else:
+        st.caption(
+            "Dans les entrées du train, aucune valeur ne manque actuellement : "
+            "les imputations sont prévues dans le pipeline, mais n'ont rien à remplacer ici."
+        )
+    interpretation(
+        "Les données numériques sont mises sur une échelle comparable. Les catégories, "
+        "comme le moyen de paiement ou le type d'appareil, deviennent des indicateurs 0/1. "
+        "Le prétraitement est ajusté uniquement sur les transactions d'entraînement "
+        "pour éviter la fuite d'informations du futur."
+    )
+
+    st.subheader("5 · Résultat final — avant / après transformation")
+    from src.modeling import build_preprocessor
+
+    demonstration_preprocessor = build_preprocessor(
+        split.numeric_features, split.categorical_features
+    )
+    demonstration_preprocessor.fit(split.X_train)
+    output_names = demonstration_preprocessor.get_feature_names_out().tolist()
+    encoded_names = [
+        name for name in output_names if name not in split.numeric_features
+    ]
+    before_after_a, before_after_b, before_after_c = st.columns(3)
+    before_after_a.metric("Colonnes initiales", len(df.columns))
+    before_after_b.metric("Variables sélectionnées", split.X_train.shape[1])
+    before_after_c.metric("Variables après encodage", len(output_names))
+
+    st.write(
+        f"Au total, le modèle reçoit **{len(output_names)} variables numériques** "
+        f"après imputation, standardisation et One-Hot Encoding, "
+        f"dont **{len(encoded_names)} colonnes issues de l'encodage catégoriel**."
+    )
+
+    with st.expander("Voir les colonnes finales et un aperçu des données transformées"):
+        st.write("**Noms des variables effectivement fournies aux modèles :**")
+        st.dataframe(
+            pd.DataFrame({"Variable après transformation": output_names}),
+            width="stretch",
+            hide_index=True,
+        )
+        transformed_sample = demonstration_preprocessor.transform(
+            split.X_train.head(6)
+        )
+        transformed_preview = pd.DataFrame(
+            transformed_sample, columns=output_names
+        )
+        preview_limit = min(18, len(output_names))
+        st.write(
+            f"**Six transactions du train après préparation** "
+            f"(aperçu des {preview_limit} premières colonnes) :"
+        )
+        st.dataframe(
+            transformed_preview.iloc[:, :preview_limit].round(3),
+            width="stretch",
+            hide_index=True,
+        )
+        st.caption(
+            "Les valeurs standardisées peuvent être négatives ; "
+            "les colonnes One-Hot sont des indicateurs 0/1. "
+            "Ce sont les valeurs destinées aux algorithmes, pas les transactions brutes."
+        )
+
+    interpretation(
+        f"Le parcours est maintenant vérifiable : {len(df.columns)} colonnes au départ, "
+        f"{engineered_count} après Feature Engineering, "
+        f"{split.X_train.shape[1]} variables retenues, puis "
+        f"{len(output_names)} variables numériques en sortie du prétraitement. "
+        "Les catégories sont remplacées par leurs colonnes 0/1. "
+        "Les modèles entraînés utilisent ce même pipeline de préparation."
+    )
 
 
 elif module == "3 · Modélisation":
