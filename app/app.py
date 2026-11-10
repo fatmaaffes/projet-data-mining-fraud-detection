@@ -716,24 +716,34 @@ elif module == "3 · Modélisation":
         training_steps = pd.DataFrame(
             [
                 {
-                    "Étape": "1 · Train (60 %)",
-                    "Action": "Entraîner séparément les deux versions de la régression logistique.",
+                    "Étape": "1 · Entraînement (Train 60 %)",
+                    "Action": "Entraîner deux régressions logistiques (sans / avec pondération), Isolation Forest et LOF. Les modèles n'apprennent que sur le train.",
                 },
                 {
-                    "Étape": "2 · Validation (20 %)",
-                    "Action": "Calculer leur PR-AUC et garder celle qui obtient le meilleur score.",
+                    "Étape": "2 · Choix de la régression (Validation 20 %)",
+                    "Action": "Comparer les deux régressions avec la PR-AUC : garder celle qui classe le mieux les fraudes sur la validation, sans réentraîner.",
                 },
                 {
-                    "Étape": "3 · Test (20 %)",
-                    "Action": "Évaluer la version retenue, après avoir fixé les choix sur la validation.",
+                    "Étape": "3 · Réglage du seuil (Validation 20 %, Module 4)",
+                    "Action": "Tester plusieurs seuils d'alerte et choisir celui qui minimise le coût des fraudes manquées et des vérifications.",
+                },
+                {
+                    "Étape": "4 · Évaluation finale (Test 20 %, Module 4)",
+                    "Action": "Appliquer le modèle et le seuil déjà choisis aux transactions les plus récentes, sans nouveau réglage.",
                 },
             ]
         )
         st.dataframe(training_steps, width="stretch", hide_index=True)
+        st.info(
+            "**À ne pas confondre :** entraîner = apprendre les paramètres du modèle sur le **Train** ; "
+            "valider = comparer les solutions sur la **Validation** ; "
+            "régler (ou « calibrer ») le seuil = choisir à partir de quel score on déclenche "
+            "une alerte. Dans ce projet, nous ne faisons **pas** de calibration des probabilités "
+            "(Platt / isotonic) : nous réglons seulement le **seuil de décision**."
+        )
         st.caption(
-            "On n'entraîne pas le modèle sur la validation : elle sert à choisir. "
-            "Le réglage du seuil d'alerte se fait ensuite au Module 4, "
-            "également sur la validation, puis est vérifié sur le test."
+            "La validation ne sert pas à réentraîner le modèle. Les trois méthodes seront "
+            "évaluées sur le test dans le Module 4, avec leurs seuils fixés sur la validation."
         )
 
         # Les valeurs affichées proviennent du vrai entraînement, pas de chiffres fixes.
@@ -827,6 +837,27 @@ elif module == "4 · Évaluation & seuil":
     else:
         results = st.session_state["fraud_results"]
 
+        st.markdown("### Comment le seuil d'alerte est-il choisi ?")
+        st.write(
+            "**Un score ne devient pas automatiquement une alerte.** "
+            "On fixe un seuil : un score supérieur ou égal au seuil déclenche une vérification. "
+            "Un seuil bas crée plus d'alertes ; un seuil haut risque de laisser passer plus de fraudes."
+        )
+        st.write(
+            "**Sur la validation**, nous essayons plusieurs seuils et retenons celui qui "
+            "minimise le coût métier. Ce réglage est parfois appelé « calibration du seuil », "
+            "mais **ce n'est pas une calibration des probabilités**."
+        )
+        st.latex(
+            r"\\text{Coût} = \\text{montants des fraudes manquées} + "
+            r"\\text{coût par alerte} \\times \\text{nombre d'alertes}"
+        )
+        st.write(
+            "**Sur le test**, on applique sans modification le seuil choisi sur la validation. "
+            "On observe ensuite la PR-AUC, le rappel, la précision, F2, MCC et le coût obtenu. "
+            "Le test sert à mesurer la performance finale, pas à optimiser de nouveau."
+        )
+
         c1, c2 = st.columns(2)
         with c1:
             alert_cost = st.slider(
@@ -857,7 +888,31 @@ elif module == "4 · Évaluation & seuil":
             alert_cost=alert_cost,
             k=k,
         )
-        st.subheader("Comparaison finale — test")
+        st.subheader("Décision issue de la validation — seuils et coûts")
+        st.write(
+            "Ce tableau présente les seuils calculés pour chaque méthode sur la validation. "
+            "Ils ne sont pas recalculés à partir du test."
+        )
+        st.dataframe(
+            table[["Méthode", "Seuil validation", "Coût validation"]].style.format(
+                {"Seuil validation": "{:.4f}", "Coût validation": "{:,.2f}"}
+            ),
+            width="stretch",
+            hide_index=True,
+        )
+        interpretation(
+            "Pour chaque méthode, le seuil affiché est celui qui minimise le coût estimé "
+            "sur la validation, compte tenu du coût par alerte choisi plus haut. "
+            "Les seuils d'Isolation Forest et de LOF concernent des scores d'anomalie, "
+            "pas des probabilités de fraude."
+        )
+
+        st.subheader("Résultats finaux — test")
+        st.write(
+            "Nous appliquons maintenant au test les modèles déjà entraînés et les seuils "
+            "retenus sur validation. Les résultats ci-dessous mesurent ce qui se passe "
+            "sur des transactions plus récentes."
+        )
         st.dataframe(
             table.style.format(
                 {
