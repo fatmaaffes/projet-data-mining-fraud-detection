@@ -951,7 +951,7 @@ elif module == "4 · Évaluation & seuil":
                 {
                     "Métrique": f"Précision@{k}",
                     "Définition simple": f"Parmi les {k} transactions avec les scores les plus élevés, quelle proportion est réellement frauduleuse ?",
-                    "Comment lire": f"0,46 signifierait environ 46 fraudes parmi les {k} premières alertes si k = 100.",
+                    "Comment lire": f"Une précision de 0,46 signifie que 46 % de ces {k} transactions sont des fraudes (46 sur 100 si k = 100).",
                 },
                 {
                     "Métrique": f"Rappel@{k}",
