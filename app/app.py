@@ -930,10 +930,102 @@ elif module == "4 · Évaluation & seuil":
             width="stretch",
         )
 
+        st.subheader("Comprendre toutes les métriques du tableau")
+        st.write(
+            "Les scores ne mesurent pas tous la même chose. Certains évaluent le "
+            "**classement des transactions**, d'autres les **alertes déclenchées "
+            "au seuil choisi**, et d'autres encore le **coût métier**."
+        )
+        explanations = pd.DataFrame(
+            [
+                {
+                    "Métrique": "PR-AUC test",
+                    "Définition simple": "Résume la précision et le rappel lorsque le seuil varie. Ici calculée avec la précision moyenne (Average Precision).",
+                    "Comment lire": "Plus elle est grande, mieux le modèle classe les fraudes rares. Elle ne représente pas l'accuracy.",
+                },
+                {
+                    "Métrique": "ROC-AUC test",
+                    "Définition simple": "Mesure si les fraudes reçoivent en général un score plus élevé que les transactions normales.",
+                    "Comment lire": "0,5 ≈ classement aléatoire ; 1 = séparation parfaite. À compléter avec la PR-AUC pour les fraudes rares.",
+                },
+                {
+                    "Métrique": f"Précision@{k}",
+                    "Définition simple": f"Parmi les {k} transactions avec les scores les plus élevés, quelle proportion est réellement frauduleuse ?",
+                    "Comment lire": f"0,46 signifierait environ 46 fraudes parmi les {k} premières alertes si k = 100.",
+                },
+                {
+                    "Métrique": f"Rappel@{k}",
+                    "Définition simple": f"Parmi toutes les fraudes du test, quelle proportion figure dans les {k} transactions les plus suspectes ?",
+                    "Comment lire": "Un rappel de 0,187 signifie que 18,7 % des fraudes sont retrouvées dans les premières alertes.",
+                },
+                {
+                    "Métrique": "F2 test",
+                    "Définition simple": "Combine précision et rappel au seuil choisi, mais donne plus d'importance au rappel que le F1.",
+                    "Comment lire": "Plus proche de 1 = mieux, selon ce compromis. Utile quand manquer une fraude est coûteux.",
+                },
+                {
+                    "Métrique": "MCC test",
+                    "Définition simple": "Résume les quatre cas : vraies fraudes détectées, fausses alertes, fraudes manquées et normales reconnues.",
+                    "Comment lire": "Entre -1 et 1 : 1 = parfait ; 0 ≈ aucune association ; -1 = prédictions inversées.",
+                },
+                {
+                    "Métrique": "Seuil validation",
+                    "Définition simple": "Score minimal à partir duquel une transaction déclenche une alerte, choisi sur la validation.",
+                    "Comment lire": "Ce n'est pas une métrique de qualité. Pour LOF et Isolation Forest, ce n'est pas une probabilité.",
+                },
+                {
+                    "Métrique": "Coût validation",
+                    "Définition simple": "Coût estimé sur la validation au seuil choisi : fraudes manquées + vérifications d'alertes.",
+                    "Comment lire": "Plus faible = mieux pour ce coût métier. C'est ce coût qui sert à régler le seuil.",
+                },
+                {
+                    "Métrique": "Coût test",
+                    "Définition simple": "Même calcul de coût, mais sur les transactions du test au seuil déjà choisi.",
+                    "Comment lire": "Plus faible = mieux. Ce coût évalue le choix sur des données plus récentes.",
+                },
+                {
+                    "Métrique": "Alertes test",
+                    "Définition simple": "Nombre de transactions dont le score dépasse le seuil retenu.",
+                    "Comment lire": "Plus d'alertes demandent plus de vérifications ; ce ne sont pas toutes des fraudes.",
+                },
+                {
+                    "Métrique": "Précision au seuil",
+                    "Définition simple": "Parmi toutes les alertes au seuil choisi, proportion de fraudes réelles.",
+                    "Comment lire": "Une précision élevée signifie peu de fausses alertes parmi les alertes.",
+                },
+                {
+                    "Métrique": "Rappel au seuil",
+                    "Définition simple": "Parmi toutes les fraudes du test, proportion effectivement détectée au seuil choisi.",
+                    "Comment lire": "Un rappel élevé signifie peu de fraudes manquées.",
+                },
+            ]
+        )
+        st.dataframe(explanations, width="stretch", hide_index=True)
+        st.caption(
+            "Précision@k et Rappel@k utilisent les k scores les plus élevés. "
+            "F2, MCC, les coûts et le nombre d'alertes dépendent du seuil fixé sur "
+            "la validation. Le curseur exploratoire plus bas illustre ces compromis, "
+            "mais ne sert pas à rechoisir le seuil final sur le test."
+        )
+
         best = table.iloc[0]
+        best_precision = float(best[f"Précision@{k}"])
+        best_recall = float(best[f"Rappel@{k}"])
+        fraud_count_test = int(split.y_test.sum())
+        k_effective = min(k, len(split.y_test))
+        detected_in_top_k = int(round(best_precision * k_effective))
         interpretation(
-            f"Selon la PR-AUC sur le test, la meilleure méthode est {best['Méthode']} "
-            f"avec {best['PR-AUC test']:.4f}. Le seuil affiché a été déterminé sur la validation puis appliqué au test."
+            f"**Sur ce test**, {best['Méthode']} obtient la PR-AUC la plus élevée "
+            f"({best['PR-AUC test']:.4f}), devant les autres méthodes. "
+            f"Parmi les {k_effective} transactions prioritaires selon ses scores, "
+            f"{detected_in_top_k} sont réellement frauduleuses "
+            f"(précision@{k_effective} = {best_precision:.1%}). "
+            f"Elles représentent {best_recall:.1%} des "
+            f"{fraud_count_test} fraudes du test (rappel@{k_effective}). "
+            f"Son F2 au seuil retenu est {best['F2 test']:.4f} et son MCC "
+            f"est {best['MCC test']:.4f}. "
+            "Ce sont des performances observées sur le test, "
+            "et non une raison pour optimiser à nouveau le modèle sur ce test."
         )
 
         st.subheader("Courbes précision-rappel")
